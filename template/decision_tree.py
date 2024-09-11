@@ -52,6 +52,7 @@ def split(x: np.ndarray, value: float) -> np.ndarray:
     Example:
         split(np.array([1, 2, 3, 4, 5, 2]), 3) -> np.array([True, True, True, False, False, True])
     """
+    return x <= value
     boolean_array = np.empty(x.shape, dtype=bool)
     for i, n in enumerate(x):
         if n <= value:
@@ -135,15 +136,16 @@ class DecisionTree:
             return Node(value=y[0])
         
         # Return leaf node with most common label, when all data points have identical feature values
-        if all(X == X[0]):
+        if np.all(X == X[0]):
             return Node(value=most_common(y))
 
-        self.max_depth -= 1
+        if self.max_depth is not None:
+            self.max_depth -= 1
         if self.max_depth == 0: # Check if stopping condition is met
             return
 
         # Get best feature and split, and use it to make the tree nodes
-        best_feature, best_split_left, best_split_right = self.get_best_split(X)
+        best_feature, best_split_left, best_split_right = self.get_best_split(X, y)
 
         # Recursive call for left subtreee
         left_subtree = self.fit(best_split_left[0], best_split_left[1])
@@ -151,14 +153,15 @@ class DecisionTree:
         # Recursive call for right subtree
         right_subtree = self.fit(best_split_right[0], best_split_right[1])
 
+        # If using mean and not median, change threshhold to mean
+        return Node(feature=best_feature, threshold=np.median(X[:, best_feature]), left=left_subtree, right=right_subtree)
 
-        return Node(feature=best_feature, threshold=j, left=left_subtree, right=right_subtree)
-
-    def get_best_split(self, X):
+    def get_best_split(self, X, y):
         # Inits for the best values
         best_feature = None
-        best_split = None
         best_information_gain = -float("inf")
+        best_split_left = None
+        best_split_right = None
 
         # Loop over all features
         for feature_index in range(X.shape[1]):
@@ -172,8 +175,6 @@ class DecisionTree:
                 best_split_right = (X_right, y_right)
                 best_information_gain = information_gain
         
-        ## TODO: Will this function sometimes have negative information gain?
-
         return best_feature, best_split_left, best_split_right
 
     # Calculate the information gain
@@ -185,7 +186,7 @@ class DecisionTree:
 
         if randomness_mode == "entropy":
             # Use entropy -> (parent entropy - weighted average child entropy)
-            information_gain = self.entropy(y_parent) - (weight_l * self.entropy(y_left) + weight_r * self.entropy(y_right))
+            information_gain = entropy(y_parent) - (weight_l * entropy(y_left) + weight_r * entropy(y_right))
         else:
             # Use gini index
             # TODO:
@@ -200,7 +201,7 @@ class DecisionTree:
         median = np.median(features)
 
         # Split
-        left_boolean_mask = self.split(features, median)
+        left_boolean_mask = split(features, median)
         right_boolean_mask = np.logical_not(left_boolean_mask)
 
         X_left, y_left = X[left_boolean_mask], y[left_boolean_mask]
@@ -228,9 +229,33 @@ class DecisionTree:
         """
         Given a NumPy array X of features, return a NumPy array of predicted integer labels.
         """
-        raise NotImplementedError(
-            "Implement this function"
-        )  # Remove this line when you implement the function
+        predictions = np.array([self.make_prediction(sample, self.root) for sample in X])
+        return predictions
+
+    def make_prediction(self, sample, node):
+        if node.is_leaf():
+            return node.value
+        
+        if sample[node.feature] <= node.threshold:
+            return self.make_prediction(sample, node.left)
+        else:
+            return self.make_prediction(sample, node.right)
+
+
+
+    def print_tree(self, node: Node, depth: int = 0):
+        if node is None:
+            return
+
+        indent = "  " * depth
+        if node.is_leaf():
+            print(f"{indent}Leaf: Predicts {node.value}")
+        else:
+            print(f"{indent}Feature {node.feature} <= {node.threshold}")
+            print(f"{indent}Left:")
+            self.print_tree(node.left, depth + 1)
+            print(f"{indent}Right:")
+            self.print_tree(node.right, depth + 1)
 
 
 if __name__ == "__main__":
@@ -252,7 +277,9 @@ if __name__ == "__main__":
 
     # Expect the training accuracy to be 1.0 when max_depth=None
     rf = DecisionTree(max_depth=None, criterion="entropy")
-    rf.fit(X_train, y_train)
+    #rf.fit(X_train, y_train)
+    rf.root = rf.fit(X_train, y_train)
+    #rf.print_tree(rf.root)
 
     print(f"Training accuracy: {accuracy_score(y_train, rf.predict(X_train))}")
     print(f"Validation accuracy: {accuracy_score(y_val, rf.predict(X_val))}")
