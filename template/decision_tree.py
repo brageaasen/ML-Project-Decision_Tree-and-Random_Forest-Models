@@ -29,9 +29,9 @@ def gini_index(y: np.ndarray) -> float:
     Example:
         gini_index(np.array([1, 1, 2, 2, 3, 3, 4, 4])) -> 0.75
     """
-    raise NotImplementedError(
-        "Implement this function"
-    )  # Remove this line when you implement the function
+    proportions = count(y)
+    gini_index = 1 - np.sum(proportions**2)
+    return gini_index
 
 
 def entropy(y: np.ndarray) -> float:
@@ -39,10 +39,7 @@ def entropy(y: np.ndarray) -> float:
     Return the entropy of a given NumPy array y.
     """
     proportions = count(y)
-    entropy = 0
-    for prop in proportions:
-        if prop > 0: # To avoid log(0)
-            entropy -= prop * np.log2(prop)
+    entropy = - np.sum(proportions * np.log2(proportions))
     return entropy
 
 
@@ -52,14 +49,7 @@ def split(x: np.ndarray, value: float) -> np.ndarray:
     Example:
         split(np.array([1, 2, 3, 4, 5, 2]), 3) -> np.array([True, True, True, False, False, True])
     """
-    return x <= value
-    boolean_array = np.empty(x.shape, dtype=bool)
-    for i, n in enumerate(x):
-        if n <= value:
-            boolean_array[i] = True
-        else:
-            boolean_array[i] = False
-    
+    boolean_array = x <= value
     return boolean_array
 
 
@@ -115,18 +105,10 @@ class DecisionTree:
         self,
         X: np.ndarray,
         y: np.ndarray,
+        current_depth: int = 0,
     ):
         """
-        This functions learns a decision tree given (continuous) features X and (integer) labels y.
-
-        • If all data points have the same label, return a leaf node with that label.
-
-        • If all data points have identical feature values, return a leaf node with the most common label.
-
-        • Otherwise, choose a feature that maximizes the information gain, split the data based on
-          the value of the feature, and add a branch for each subset of data. For each branch, call the
-          algorithm recursively for the data points belonging to the particular branch.
-
+        TODO: Write docs
         """
 
         ## Check base cases
@@ -139,21 +121,20 @@ class DecisionTree:
         if np.all(X == X[0]):
             return Node(value=most_common(y))
 
-        if self.max_depth is not None:
-            self.max_depth -= 1
-        if self.max_depth == 0: # Check if stopping condition is met
-            return
+        if self.max_depth is not None and current_depth >= self.max_depth: # Check if stopping condition is met
+            return Node(value=most_common(y)) # Ensure a leaf node is returned, e.g not a None "node"
+        
 
         # Get best feature and split, and use it to make the tree nodes
         best_feature, best_split_left, best_split_right = self.get_best_split(X, y)
 
         # Recursive call for left subtreee
-        left_subtree = self.fit(best_split_left[0], best_split_left[1])
+        left_subtree = self.fit(best_split_left[0], best_split_left[1], current_depth + 1)
 
         # Recursive call for right subtree
-        right_subtree = self.fit(best_split_right[0], best_split_right[1])
+        right_subtree = self.fit(best_split_right[0], best_split_right[1], current_depth + 1)
 
-        # If using mean and not median, change threshhold to mean
+        # NB! If using mean and not median, change threshhold to mean -> TODO: Need to check mean implementation aswell
         return Node(feature=best_feature, threshold=np.median(X[:, best_feature]), left=left_subtree, right=right_subtree)
 
     def get_best_split(self, X, y):
@@ -178,19 +159,18 @@ class DecisionTree:
         return best_feature, best_split_left, best_split_right
 
     # Calculate the information gain
-    def calculate_information_gain(self, y_parent, y_left, y_right, randomness_mode="entropy"):
+    def calculate_information_gain(self, y_parent, y_left, y_right):
 
         # Calculate weights
-        weight_l = len(y_left) - len(y_parent)
-        weight_r = len(y_right) - len(y_parent)
+        weight_l = len(y_left) / len(y_parent)
+        weight_r = len(y_right) / len(y_parent)
 
-        if randomness_mode == "entropy":
+        if self.criterion == "entropy":
             # Use entropy -> (parent entropy - weighted average child entropy)
             information_gain = entropy(y_parent) - (weight_l * entropy(y_left) + weight_r * entropy(y_right))
         else:
             # Use gini index
-            # TODO:
-            information_gain = 0
+            information_gain = gini_index(y_parent) - (weight_l * gini_index(y_left) + weight_r * gini_index(y_right))
 
         return information_gain
 
@@ -209,7 +189,7 @@ class DecisionTree:
 
         return X_left, y_left, X_right, y_right
 
-    # Calculate the mean split on the features
+    # Calculate the mean split on the features TODO: I need to look at this to check that this works aswell
     def calculate_mean_split(self, X, y, feature_index):
         # Mean feature value
         features= X[:, feature_index]
@@ -240,21 +220,24 @@ class DecisionTree:
             return self.make_prediction(sample, node.left)
         else:
             return self.make_prediction(sample, node.right)
-
-
+    
 
     def print_tree(self, node: Node, depth: int = 0):
+        """
+        Print the decision tree.
+        """
         if node is None:
             return
 
         indent = "  " * depth
+
         if node.is_leaf():
-            print(f"{indent}Leaf: Predicts {node.value}")
+            print(f"{indent}Leaf node: Predict {node.value}")
         else:
-            print(f"{indent}Feature {node.feature} <= {node.threshold}")
-            print(f"{indent}Left:")
+            print(f"{indent}Feature {node.feature} <= {node.threshold:.2f}")
+            print(f"{indent}Left subtree:")
             self.print_tree(node.left, depth + 1)
-            print(f"{indent}Right:")
+            print(f"{indent}Right subtree:")
             self.print_tree(node.right, depth + 1)
 
 
@@ -277,9 +260,8 @@ if __name__ == "__main__":
 
     # Expect the training accuracy to be 1.0 when max_depth=None
     rf = DecisionTree(max_depth=None, criterion="entropy")
-    #rf.fit(X_train, y_train)
     rf.root = rf.fit(X_train, y_train)
-    #rf.print_tree(rf.root)
+    rf.print_tree(rf.root)
 
     print(f"Training accuracy: {accuracy_score(y_train, rf.predict(X_train))}")
     print(f"Validation accuracy: {accuracy_score(y_val, rf.predict(X_val))}")
