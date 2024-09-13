@@ -95,11 +95,13 @@ class DecisionTree:
     def __init__(
         self,
         max_depth: int | None = None,
+        max_features: str | None = None,
         criterion: str = "entropy",
     ) -> None:
         self.root = None
         self.criterion = criterion
         self.max_depth = max_depth
+        self.max_features = max_features
 
     def fit(
         self,
@@ -128,11 +130,18 @@ class DecisionTree:
         # Get best feature and split, and use it to make the tree nodes
         best_feature, best_split_left, best_split_right = self.get_best_split(X, y)
 
+        # Split data
+        X_left, y_left = best_split_left
+        X_right, y_right = best_split_right
+        # If either split is empty, handle this case
+        if len(X_left) == 0 or len(X_right) == 0:
+            return Node(value=most_common(y))
+
         # Recursive call for left subtreee
-        left_subtree = self.fit(best_split_left[0], best_split_left[1], current_depth + 1)
+        left_subtree = self.fit(X_left, y_left, current_depth + 1)
 
         # Recursive call for right subtree
-        right_subtree = self.fit(best_split_right[0], best_split_right[1], current_depth + 1)
+        right_subtree = self.fit(X_right, y_right, current_depth + 1)
 
         # NB! If using mean and not median, change threshhold to mean -> TODO: Need to check mean implementation aswell
         return Node(feature=best_feature, threshold=np.median(X[:, best_feature]), left=left_subtree, right=right_subtree)
@@ -144,8 +153,19 @@ class DecisionTree:
         best_split_left = None
         best_split_right = None
 
+        # Choose what features to consider for the split
+        features_to_consider = None
+        if self.max_features is None: # Use all features
+            features_to_consider = np.arange(X.shape[1])
+        elif self.max_features == "sqrt": # Use a random subset of sqrt of the features
+            feature_subset_size = int(np.floor(np.sqrt(X.shape[1])))
+            features_to_consider = np.random.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)
+        elif self.max_features == "log2": # Use a random subset of log2 of the features
+            feature_subset_size = int(np.floor(np.log2(X.shape[1])))
+            features_to_consider = np.random.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)    
+            
         # Loop over all features
-        for feature_index in range(X.shape[1]):
+        for feature_index in features_to_consider:
             X_left, y_left, X_right, y_right = self.calculate_median_split(X, y, feature_index)
 
             information_gain = self.calculate_information_gain(y, y_left, y_right)
@@ -168,6 +188,7 @@ class DecisionTree:
         if self.criterion == "entropy":
             # Use entropy -> (parent entropy - weighted average child entropy)
             information_gain = entropy(y_parent) - (weight_l * entropy(y_left) + weight_r * entropy(y_right))
+        #elif self.criterion == "gini_index":
         else:
             # Use gini index
             information_gain = gini_index(y_parent) - (weight_l * gini_index(y_left) + weight_r * gini_index(y_right))
@@ -234,7 +255,7 @@ class DecisionTree:
         if node.is_leaf():
             print(f"{indent}Leaf node: Predict {node.value}")
         else:
-            print(f"{indent}Feature {node.feature} <= {node.threshold:.2f}")
+            print(f"{indent}Feature Node: {node.feature}, HAS THRESHOLD {node.threshold:.2f}")
             print(f"{indent}Left subtree:")
             self.print_tree(node.left, depth + 1)
             print(f"{indent}Right subtree:")
@@ -259,9 +280,11 @@ if __name__ == "__main__":
     )
 
     # Expect the training accuracy to be 1.0 when max_depth=None
-    rf = DecisionTree(max_depth=None, criterion="entropy")
+    rf = DecisionTree(max_depth=4, criterion="entropy", max_features="sqrt")
     rf.root = rf.fit(X_train, y_train)
     rf.print_tree(rf.root)
+    print()
 
+    print("Testing:")
     print(f"Training accuracy: {accuracy_score(y_train, rf.predict(X_train))}")
     print(f"Validation accuracy: {accuracy_score(y_val, rf.predict(X_val))}")

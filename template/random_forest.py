@@ -1,5 +1,5 @@
 import numpy as np
-
+from decision_tree import DecisionTree
 
 class RandomForest:
     def __init__(
@@ -13,17 +13,37 @@ class RandomForest:
         self.max_depth = max_depth
         self.criterion = criterion
         self.max_features = max_features
+        self.trained_trees = []
 
     def fit(self, X: np.ndarray, y: np.ndarray):
-        raise NotImplementedError(
-            "Implement this function"
-        )  # Remove this line when you implement the function
+        for _ in range(self.n_estimators): # Create the forest
+            # Sample random subset (indicies)
+            random_data_subset = np.random.choice(np.arange(X.shape[0]), X.shape[0], replace=True)
+
+            X_subset = X[random_data_subset]
+            y_subset = y[random_data_subset]
+
+            # Create the tree
+            tree = DecisionTree(max_depth=self.max_depth, max_features=self.max_features, criterion=self.criterion)
+
+            # Fit the tree
+            tree.root = tree.fit(X_subset, y_subset)
+
+            self.trained_trees.append(tree)
+
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        raise NotImplementedError(
-            "Implement this function"
-        )  # Remove this line when you implement the function
+        # Get the predictions of every tree
+        tree_predictions = np.array([tree.predict(X) for tree in self.trained_trees])
+        
+        # Take the majority vote across all trees
+        majority_vote = []
+        for i in range(tree_predictions.shape[1]): # Look at each sample's predictions
+            votes = tree_predictions[:, i] # Collect all predictions for the that sample
+            majority_vote.append(np.bincount(votes).argmax()) # Find the most common vote for this tree
 
+        majority_vote = np.array(majority_vote) # Convert list to a NumPy array
+        return majority_vote
 
 if __name__ == "__main__":
     # Test the RandomForest class on a synthetic dataset
@@ -42,6 +62,7 @@ if __name__ == "__main__":
         X, y, test_size=0.3, random_state=seed, shuffle=True
     )
 
+    # TODO: Crashes when max_depth=0 ?
     rf = RandomForest(
         n_estimators=20, max_depth=5, criterion="entropy", max_features="sqrt"
     )
