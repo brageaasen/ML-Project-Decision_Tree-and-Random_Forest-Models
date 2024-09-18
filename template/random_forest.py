@@ -8,12 +8,14 @@ class RandomForest:
         max_depth: int = 5,
         criterion: str = "entropy",
         max_features: None | str = "sqrt",
+        random_state = 0
     ) -> None:
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.criterion = criterion
         self.max_features = max_features
         self.trained_trees = []
+        self.random_state = random_state
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         for _ in range(self.n_estimators): # Create the forest
@@ -39,10 +41,10 @@ class RandomForest:
         # Take the majority vote across all trees
         majority_vote = []
         for i in range(tree_predictions.shape[1]): # Look at each sample's predictions
-            votes = tree_predictions[:, i] # Collect all predictions for the that sample
+            votes = tree_predictions[:, i] # Collect predictions
             majority_vote.append(np.bincount(votes).argmax()) # Find the most common vote for this tree
 
-        majority_vote = np.array(majority_vote) # Convert list to a NumPy array
+        majority_vote = np.array(majority_vote)
         return majority_vote
 
 if __name__ == "__main__":
@@ -62,9 +64,8 @@ if __name__ == "__main__":
         X, y, test_size=0.3, random_state=seed, shuffle=True
     )
 
-    # TODO: Crashes when max_depth=0 ?
     rf = RandomForest(
-        n_estimators=20, max_depth=5, criterion="entropy", max_features="sqrt"
+        n_estimators=20, max_depth=8, criterion="entropy", max_features="sqrt", random_state=seed
     )
     rf.fit(X_train, y_train)
 
