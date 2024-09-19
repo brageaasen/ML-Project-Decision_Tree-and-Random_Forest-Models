@@ -1,0 +1,6 @@
+# Ignore the Python virtual environment folder
+env/
+
+# Optional: ignore system-specific files
+.DS_Store
+Thumbs.db

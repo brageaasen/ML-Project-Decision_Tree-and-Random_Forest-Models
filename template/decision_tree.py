@@ -192,7 +192,7 @@ class DecisionTree:
         if self.criterion == "entropy":
             # Use entropy -> (parent entropy - weighted average child entropy)
             information_gain = entropy(y_parent) - (weight_l * entropy(y_left) + weight_r * entropy(y_right))
-        elif self.criterion == "gini_index":
+        elif self.criterion == "gini":
             # Use Gini index
             information_gain = gini_index(y_parent) - (weight_l * gini_index(y_left) + weight_r * gini_index(y_right))
 
