@@ -16,11 +16,15 @@ class RandomForest:
         self.max_features = max_features
         self.trained_trees = []
         self.random_state = random_state
+        self.rng = np.random.default_rng(random_state)
 
     def fit(self, X: np.ndarray, y: np.ndarray):
         for _ in range(self.n_estimators): # Create the forest
+            # Initialize the random seed for each tree
+            np.random.seed(self.random_state)
+
             # Sample random subset (indicies)
-            random_data_subset = np.random.choice(np.arange(X.shape[0]), X.shape[0], replace=True)
+            random_data_subset = self.rng.choice(np.arange(X.shape[0]), X.shape[0], replace=True)
 
             X_subset = X[random_data_subset]
             y_subset = y[random_data_subset]
@@ -29,7 +33,7 @@ class RandomForest:
             tree = DecisionTree(max_depth=self.max_depth, max_features=self.max_features, criterion=self.criterion)
 
             # Fit the tree
-            tree.root = tree.fit(X_subset, y_subset)
+            tree.fit(X_subset, y_subset)
 
             self.trained_trees.append(tree)
 
@@ -65,7 +69,7 @@ if __name__ == "__main__":
     )
 
     rf = RandomForest(
-        n_estimators=20, max_depth=8, criterion="entropy", max_features="sqrt", random_state=seed
+        n_estimators=30, max_depth=None, criterion="entropy", max_features=None, random_state=seed
     )
     rf.fit(X_train, y_train)
 

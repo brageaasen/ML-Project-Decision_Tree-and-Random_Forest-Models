@@ -47,8 +47,7 @@ def split(x: np.ndarray, value: float) -> np.ndarray:
     Example:
         split(np.array([1, 2, 3, 4, 5, 2]), 3) -> np.array([True, True, True, False, False, True])
     """
-    boolean_array = x <= value
-    return boolean_array
+    return x <= value
 
 
 def most_common(y: np.ndarray) -> int:
@@ -102,6 +101,9 @@ class DecisionTree:
         self.max_depth = max_depth
         self.max_features = max_features
         self.random_state = random_state
+        self.rng = np.random.default_rng(random_state)
+
+
 
     def fit(self, X: np.ndarray, y: np.ndarray, current_depth: int = 0):
         """
@@ -110,6 +112,9 @@ class DecisionTree:
         # Initialize the random seed
         np.random.seed(self.random_state)
 
+        # Fit on the root
+        if current_depth == 0:
+            self.root = self.fit(X, y, current_depth=1)
 
         ## Check base cases
 
@@ -160,10 +165,10 @@ class DecisionTree:
             features_to_consider = np.arange(X.shape[1])
         elif self.max_features == "sqrt": # Use a random subset of sqrt of the features
             feature_subset_size = int(np.floor(np.sqrt(X.shape[1])))
-            features_to_consider = np.random.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)
+            features_to_consider = self.rng.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)
         elif self.max_features == "log2": # Use a random subset of log2 of the features
             feature_subset_size = int(np.floor(np.log2(X.shape[1])))
-            features_to_consider = np.random.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)    
+            features_to_consider = self.rng.choice(np.arange(X.shape[1]), feature_subset_size, replace=False)
             
         # Loop over all features
         for feature_index in features_to_consider:
@@ -220,19 +225,19 @@ class DecisionTree:
         """
         Given a NumPy array X of features, return a NumPy array of predicted integer labels.
         """
-        predictions = np.array([self.make_prediction(sample, self.root) for sample in X])
+        predictions = np.array([self.predict_sample(sample, self.root) for sample in X])
         return predictions
 
-    def make_prediction(self, sample, node):
+    def predict_sample(self, sample, node):
         ## Check base case
         if node.is_leaf():
             return node.value
         
         # Recursive call
         if sample[node.feature] <= node.threshold:
-            return self.make_prediction(sample, node.left)
+            return self.predict_sample(sample, node.left)
         else:
-            return self.make_prediction(sample, node.right)
+            return self.predict_sample(sample, node.right)
     
 
     def print_tree(self, node: Node, depth: int = 0):
@@ -272,9 +277,9 @@ if __name__ == "__main__":
     )
 
     # Expect the training accuracy to be 1.0 when max_depth=None
-    rf = DecisionTree(max_depth=4, criterion="entropy", max_features="sqrt", random_state=seed)
-    rf.root = rf.fit(X_train, y_train)
-    rf.print_tree(rf.root)
+    rf = DecisionTree(max_depth=4, criterion="entropy", max_features=None, random_state=seed)
+    rf.fit(X_train, y_train)
+    # rf.print_tree(rf.root)
     print()
 
     print("Testing:")
